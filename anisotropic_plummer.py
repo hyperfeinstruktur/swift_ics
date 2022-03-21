@@ -11,11 +11,11 @@ from tqdm import tqdm
 G = 4.299581e+04  # Gravitational constant [kpc / 10^10 M_s * (kms)^2]
 a = 0.01          # Plummer softening length [kpc]
 M = 6.0e-6        # Total Mass [10^10 M_s]
-q = 0.0			  # Anisotropy Parameter (-inf,2]
+q = 1.0			  # Anisotropy Parameter (-inf,2]
 N = 10000        # Number of Particles
 bound = 2.0		  # Max distance to origin (exclude outliers)
 
-#assert q != 0.0, "For q=0, use isotropic_plummer.py"
+if (q==0.0): print('WARNING: For q=0, use isotropic plummer script for better performance')
 
 ####### Generate Positions
 
@@ -34,21 +34,22 @@ z = r_rand * np.cos(theta_rand)
 X = np.array([x,y,z]).transpose()
 
 ####### Dejonghe (1987) Anisotropic Distribution Function for Plummer Model
-def Fq_part1(E):
-    return 3.0 * sci.gamma(6.-q) * G**(q-5) * M**(q-4) * a**(2-q) * E**(3.5-q) / ( 2 * (2*np.pi)**(2.5) )
 
+normalization = 3.0*sci.gamma(6.0-q) / (2.0*(2.0*np.pi)**(2.5))
+units = G**(q-5.0) * M**(q-4.0) * a**(2.0-q)
 
-def H(a,b,c,d,x):
-    if x  <= 1:
-        return 1.0/(sci.gamma(c-a)*sci.gamma(a+d))*(x**a)*sci.hyp2f1(a+b, 1.0+a-c, a+d, x)
+def H(E,L):
+    x = L**2 / (2.0*E*a**2)
+    if x<=1.0:
+        return 1.0/(sci.gamma(4.5-q)) * sci.hyp2f1(0.5*q,q-3.5,1.0,x)
     else:
-        return 1.0/(sci.gamma(d-b)*sci.gamma(b+c)*x**(b))*sci.hyp2f1(a+b, 1.0+b-d, b+c, 1.0/x)
+        return 1.0/(sci.gamma(1.0-0.5*q)*sci.gamma(4.5-0.5*q)*(x**(0.5*q))) *sci.hyp2f1(0.5*q,0.5*q,4.5-0.5*q,1.0/x)
 
-#def Fq(E,L):
-#    return Fq_part1(E) * Fq_part2(E,L)
 def Fq(E,L):
-	if (E<=0.): return 0.0
-	return Fq_part1(E) * H(0.,q/2.,4.5-q,1.0,L**2 / (2.*E))
+    if E < 0.0:
+        return 0.0
+    else:
+        return normalization * units * E**(3.5-q) * H(E,L) 
 
 ####### Helper Functions
 # Total energy: E = phi - 1/2v^2. relative potential: psi = -phi. Relative energy: -E = psi - 1/2v^2
@@ -60,17 +61,12 @@ def relative_energy(r,vr,vt):
 
 # N.B: Angular momentum: L = r * vt
 
-# Fq in terms of vr, vt ATTENTION: vt factor appears!
-def Fq_vel(r,vr,vt):
-    return Fq(relative_energy(r,vr,vt),r*vt)*vt
-
-# Convenience Function for scipy.minimize (negative of Fq, indep. vars passed as array)
+# Convenience Function for scipy.minimize negative of Fq*vt, indep. vars passed as array
 def Fq_tomin(v,r):
     return -Fq(relative_energy(r,v[0],v[1]),r*v[1])*v[1]
 
 ####### Find max of DF at given radius
 def fmax(r,vmax):
-    # Compute max velocity (equiv. condition for E>=0)
     #vmax = np.sqrt(2. * relative_potential(r))
     
     args = (r,)
@@ -79,8 +75,7 @@ def fmax(r,vmax):
     def vel_constr2(v):
         return vmax**2-v[0]**2-v[1]**2
     
-    # Initial Guess (Based on a posteriori observation):
-    #v0 = [0.0,0.2*vmax] 
+    # Initial Guess
     v0 = [0.1*vmax,0.2*vmax]
 
     # Constraint Object
@@ -98,7 +93,7 @@ def sample_vel(r):
     # Compute max velocity (equiv. condition for E>=0)
     vmax = np.sqrt(2. * relative_potential(r))
     # Compute max of DF at this radius
-    fm = 1.2*fmax(r,vmax)
+    fm = 1.1*fmax(r,vmax) # 1.1 factor to be sure to include max
     while True:
         # Select candidates for vr,vt based on max full velocity
         while True:
@@ -107,7 +102,7 @@ def sample_vel(r):
             if (vr**2 + vt**2 <= vmax**2): break
         # Rejection Sampling on Fq
         f = np.random.uniform(0.0,fm)
-        if Fq_vel(r,vr,vt) >= f:
+        if Fq(relative_energy(r,vr,vt),r*vt)*vt >= f:
             return vr,vt
         
 print('Sampling velocities...')
@@ -131,7 +126,6 @@ v_z = np.cos(theta_rand)*vr - np.sin(theta_rand)*vtheta
 
 # Create velocity array for pickling
 V = np.array([v_x,v_y,v_z]).transpose()
-print(np.amax(V)) # opt
 
 ####### Generate masses
 
@@ -151,8 +145,3 @@ if 1:
 
     with open('M.pkl','wb') as f:
         pkl.dump(m[:],f)
-
-####### Optional: Display xy projection
-if 0:
-    plt.scatter(x,y,s=0.4)
-    plt.show()

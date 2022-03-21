@@ -10,9 +10,23 @@ M = 6.0e-6        # Total Mass [10^10 M_s]
 N = 10000        # Number of Particles
 bound = 2.0		  # Max distance to origin (exclude outliers)
 
+##### Generate Positions
 def r_of_m(m,a,M):
     return a * ((M/m)**(2./3.) - 1)**(-1./2.)
 
+m_rand = M*np.random.uniform(0.0,1.0,N)
+r_rand = r_of_m(m_rand,a,M)
+phi_rand = np.random.uniform(0.0,2*np.pi,N)
+theta_rand = np.arccos( np.random.uniform(-1.,1.,N) )
+
+x = r_rand * np.sin(theta_rand) * np.cos(phi_rand)
+y = r_rand * np.sin(theta_rand) * np.sin(phi_rand)
+z = r_rand * np.cos(theta_rand)
+
+X = np.array([x,y,z]).transpose()
+print(np.amax(np.sqrt(np.sum(X**2,1))))
+
+###### Generate Velocities
 def relative_potential(r,a,M): # = - phi
     return G*M / np.sqrt(r**2 + a**2)
 
@@ -41,20 +55,6 @@ def sample_velocity(r,a,M):
         X5 = np.random.uniform()
         if 0.1*X5 < (X4**2*(1.-X4**2)**(3.5)): return X4*v_e, X5*v_e
 
-
-# Generate Positions
-m_rand = M*np.random.uniform(0.0,1.0,N)
-r_rand = r_of_m(m_rand,a,M)
-phi_rand = np.random.uniform(0.0,2*np.pi,N)
-theta_rand = np.arccos( np.random.uniform(-1.,1.,N) )
-
-x = r_rand * np.sin(theta_rand) * np.cos(phi_rand)
-y = r_rand * np.sin(theta_rand) * np.sin(phi_rand)
-z = r_rand * np.cos(theta_rand)
-
-X = np.array([x,y,z]).transpose()
-print(np.amax(np.sqrt(np.sum(X**2,1))))
-# Generate Velocities
 vel_rand = np.empty(N)
 for i in range(len(vel_rand)):
     vel_rand[i] = sample_velocity(r_rand[i],a,M)[0]
@@ -68,11 +68,11 @@ v_z = vel_rand * np.cos(theta_rand)
 
 V = np.array([v_x,v_y,v_z]).transpose()
 print(np.amax(V))
-# Generate masses
-m = M/N * np.ones(N)
-#print(m)
 
-# Exclude extreme outliers
+##### Generate masses
+m = M/N * np.ones(N)
+
+##### Exclude extreme outliers
 idx = np.sqrt(np.sum(X**2,1)) < bound
 X = X[idx]
 V = V[idx]
