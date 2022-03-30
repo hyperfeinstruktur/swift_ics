@@ -78,11 +78,12 @@ print(np.amax(V))
 ##### Generate masses
 m = M/N * np.ones(N)
 
-##### Exclude extreme outliers
+####### Exclude extreme outliers
 idx = np.sqrt(np.sum(X**2,1)) < bound
 X = X[idx]
 V = V[idx]
 m = m[idx]
+new_N = len(m)
 
 ###### Write to hdf5
 import h5py
@@ -93,7 +94,7 @@ with h5py.File(fname,'w') as f:
         f,
         boxsize=box_size,
         flag_entropy = 0,
-        np_total = [0,N,0,0,0,0],
+        np_total = [0,new_N,0,0,0,0],
         np_total_hw = [0,0,0,0,0,0]
     )
     wg.write_runtime_pars(
@@ -114,9 +115,9 @@ with h5py.File(fname,'w') as f:
         pos = X,
         vel = V,
         mass = m,
-        ids=np.arange(N), # Overridden by params.yml
-        int_energy = np.zeros(N),
-        smoothing = np.ones(N)
+        ids=np.arange(new_N), # Overridden by params.yml
+        int_energy = np.zeros(new_N),
+        smoothing = np.ones(new_N)
     )
 
 ###### Optional: Pickle ic arrays for future use
