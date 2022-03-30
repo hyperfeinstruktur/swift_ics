@@ -2,21 +2,26 @@ import numpy as np
 import scipy.special as sci
 from scipy.optimize import minimize
 from tqdm import tqdm
+import time
 
 ####### Parameters
 # Plummer Model
 G = 4.299581e+04  # Gravitational constant [kpc / 10^10 M_s * (kms)^2]
-a = 0.01          # Plummer softening length [kpc]
-M = 6.0e-6        # Total Mass [10^10 M_s]
-q = 1.0			  # Anisotropy Parameter (-inf,2]
+a = 0.05          # Plummer softening length [kpc]
+M = 1.0e-5        # Total Mass [10^10 M_s]
+q = 0.0			  # Anisotropy Parameter (-inf,2]
 
 # IC File
-N = 1000        # Number of Particles
+N = 1000000        # Number of Particles
 bound = 2.0		  # Max distance to origin (exclude outliers)
-fname = 'plummer_anisotropic.hdf5' # Name of the ic file (dont forget .hdf5)
+fname = 'plummer.hdf5' # Name of the ic file (dont forget .hdf5)
 pickle_ics = 0      # Optional: Pickle ics (pos,vel,mass) for future use
 box_size = 4.0
 periodic_bdry = 0
+
+# Parallelism for velocity sampling
+use_parallel = True
+nb_threads = 6  # Set to None to use os.cpucount()
 
 if (q==0.0): print('WARNING: For q=0, use isotropic plummer script for better performance')
 
@@ -107,13 +112,21 @@ def sample_vel(r):
         f = np.random.uniform(0.0,fm)
         if Fq(relative_energy(r,vr,vt),r*vt)*vt >= f:
             return vr,vt
-        
-print('Sampling velocities...')
-vels = np.empty((2,N))
-for j,r in enumerate(tqdm(r_rand)):
-    vels[:,j] = sample_vel(r)
 
-# Convert to x,y,z
+print('Sampling velocities...')
+ti = time.time()
+if use_parallel:
+    from multiprocessing import Pool        
+    with Pool(nb_threads) as p:
+        vels = np.array(p.map(sample_vel,r_rand)).transpose()
+else:
+    vels = np.empty((2,N))
+    for j,r in enumerate(tqdm(r_rand)):
+        vels[:,j] = sample_vel(r)
+tf = time.time()
+print('Sampling took ' + "{:.2f}".format(tf-ti) + ' seconds.')
+
+# Convert to Cartesian
 # First: project vt on e_theta, e_phi with random orientation
 alph = np.random.uniform(0,2*np.pi,N)
 sgn = np.random.choice([-1,1],size=N)
@@ -139,6 +152,7 @@ idx = np.sqrt(np.sum(X**2,1)) < bound
 X = X[idx]
 V = V[idx]
 m = m[idx]
+new_N = len(m)
 
 ###### Write to hdf5
 import h5py
@@ -149,7 +163,7 @@ with h5py.File(fname,'w') as f:
         f,
         boxsize=box_size,
         flag_entropy = 0,
-        np_total = [0,N,0,0,0,0],
+        np_total = [0,new_N,0,0,0,0],
         np_total_hw = [0,0,0,0,0,0]
     )
     wg.write_runtime_pars(
@@ -170,9 +184,9 @@ with h5py.File(fname,'w') as f:
         pos = X,
         vel = V,
         mass = m,
-        ids=np.arange(N), # Overridden by params.yml
-        int_energy = np.zeros(N),
-        smoothing = np.ones(N)
+        ids=np.arange(new_N), # Overridden by params.yml
+        int_energy = np.zeros(new_N),
+        smoothing = np.ones(new_N)
     )
 
 ###### Optional: Pickle ic arrays for future use
