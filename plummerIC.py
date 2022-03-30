@@ -3,6 +3,8 @@ import scipy.special as sci
 from scipy.optimize import minimize
 from tqdm import tqdm
 import time
+import h5py
+import write_gadget as wg
 
 ####### Parameters
 # Plummer Model
@@ -155,8 +157,6 @@ m = m[idx]
 new_N = len(m)
 
 ###### Write to hdf5
-import h5py
-import write_gadget as wg
 print('Writing IC file...')
 with h5py.File(fname,'w') as f:
     wg.write_header(
