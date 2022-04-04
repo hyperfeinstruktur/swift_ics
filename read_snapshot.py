@@ -44,13 +44,15 @@ class snapshot:
         self.vel = np.array(data['Velocities'])
         self.mass = np.array(data['Masses'])
         self.pot = np.array(data['Potentials'])
+        self.IDs = np.array(data['ParticleIDs'])
     
     # Useful Methods
+    year_in_sec = 31557600
     def time_Gyr(self):
-        return self.time * self.UnitTime_in_cgs / (86400.0 * 1.0e9)
+        return self.time * self.UnitTime_in_cgs / (self.year_in_sec * 1.0e9)
 
     def time_begin_Gyr(self):
-        return self.time_begin * self.UnitTime_in_cgs / (86400.0 * 1.0e9)
+        return self.time_begin * self.UnitTime_in_cgs / (year_in_sec * 1.0e9)
 
     def time_end_Gyr(self):
-        return self.time_end * self.UnitTime_in_cgs / (86400.0 * 1.0e9)
+        return self.time_end * self.UnitTime_in_cgs / (year_in_sec * 1.0e9)
