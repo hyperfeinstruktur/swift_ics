@@ -11,9 +11,9 @@ if __name__ == '__main__':
     ##### Model Parameters
     # Mestel Disk (Mestel 1963) + Naive cut function
     G = 4.299581e+04 # kpc / 10^10 solar mass * (km/s)^2
-    r0 = 200    # Scale Radius
+    r0 = 10.    # Scale Radius
     q = 11.4   # Dispersion parameter
-    v0 = 100  # Circular velocity
+    v0 = 230  # Circular velocity
     M_cut = 1e2
 
     # IC File
@@ -33,9 +33,10 @@ if __name__ == '__main__':
     sig = v0 / np.sqrt(1.0+q) # Velocity dispersion
     F0 = Sigma0 / ( 2.0**(q/2.) * np.sqrt(np.pi) * r0**q * sig**(q+2.0) + sci.gamma((1+q)/2.0)) # DF Normalization factor
 
+    print(F0)
     ###### Generate Positions
     def r_of_m(m):
-        return G*m/v0**2
+        return G*m/(v0**2)
     R_cut = r_of_m(M_cut)
 
     m_rand = M_cut*np.random.uniform(0.0,1.0,N)
@@ -51,7 +52,7 @@ if __name__ == '__main__':
     ######## Generate velocities
     # Helper Functions
     def relative_potential(r):
-        return -v0**2 * (np.log(r/r0) - np.log(R_cut/r0) ) # Set 0 of potential to R_cut
+        return -v0**2 * np.log(r/r0)
     def relative_energy(r,vr,vt):
         return relative_potential(r) - 0.5*(vr**2 + vt**2)
 
@@ -79,23 +80,23 @@ if __name__ == '__main__':
         cons = ({'type':'ineq', 'fun': vel_constr2})
         
         # Minimize through scipy.optimize.minimize
-        fm = minimize(F_tomin,v0,constraints=cons,method = 'COBYLA',args=args)
-        #fm = minimize(F_tomin,v0,constraints=cons,method = 'SLSQP',args=args,bounds=[(0,vmax),(0,vmax)])
+        #fm = minimize(F_tomin,v0,constraints=cons,method = 'COBYLA',args=args)
+        fm = minimize(F_tomin,v0,constraints=cons,method = 'SLSQP',args=args,bounds=[(0,vmax),(0,vmax)])
         
         # Min of negative df == max of df
         return -fm.fun
 
     def sample_vel(r):
         # Compute max velocity (equiv. condition for E>=0)
-        vmax = np.sqrt(2. * relative_potential(r))
+        #vmax = np.sqrt(2. * relative_potential(r))
+        vmax = 50*v0
         # Compute max of DF at this radius
         fm = 1.1*fmax(r,vmax) # 1.1 factor to be sure to include max
+        #print(fm)
         while True:
             # Select candidates for vr,vt based on max full velocity
-            while True:
-                vr = np.random.uniform(0.0,vmax)
-                vt = np.random.uniform(0.0,vmax)
-                if (vr**2 + vt**2 <= vmax**2): break
+            vr = np.random.uniform(0.0,vmax)
+            vt = np.random.uniform(0.0,vmax)
             # Rejection Sampling on Fq
             f = np.random.uniform(0.0,fm)
             if F_M(relative_energy(r,vr,vt),r*vt)*vt >= f:
