@@ -37,8 +37,9 @@ def update_plot(i):
     sc.set_offsets(sn.pos[:,0:2]-shift)
     ax.set_xlim(-lim,lim)
     ax.set_ylim(-lim,lim)
-    ax.set_title(r'$t=$' + "{:.2f}".format(time) + 'Myr',fontsize=25)
-    print('### Processing frame ' + str(i) + ' ... ')
+    ax.set_title(r'$t=$' + "{:.2f}".format(time) + ' Myr',fontsize=25)
+    #print('### Processing frame ' + str(i) + ' ... ')
+    print('Processing ' + fn + ' ...')
 
 fname = args.dir + 'output_0000.hdf5'
 sn = snapshot(fname)
@@ -53,7 +54,7 @@ ax.set_ylim(-lim,lim)
 ax.set_xlabel('x [kpc]')
 ax.set_ylabel('y [kpc]')
 ax.set_aspect('equal','box')
-ax.set_title(r'$t=$' + "{:.2f}".format(time) + 'Myr',fontsize=25)
+ax.set_title(r'$t=$' + "{:.2f}".format(time) + ' Myr',fontsize=25)
 
 
 # Animate

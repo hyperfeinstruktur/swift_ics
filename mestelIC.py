@@ -14,7 +14,8 @@ if __name__ == '__main__':
     r0 = 10.    # Scale Radius
     q = 11.4   # Dispersion parameter
     v0 = 230  # Circular velocity
-    M_cut = 1e2
+    M_cut = 1.0e2
+    M_cut_inner = 5.0
 
     # IC File
     N = 100000       # Number of Particles
@@ -33,13 +34,13 @@ if __name__ == '__main__':
     sig = v0 / np.sqrt(1.0+q) # Velocity dispersion
     F0 = Sigma0 / ( 2.0**(q/2.) * np.sqrt(np.pi) * r0**q * sig**(q+2.0) + sci.gamma((1+q)/2.0)) # DF Normalization factor
 
-    print(F0)
     ###### Generate Positions
     def r_of_m(m):
         return G*m/(v0**2)
     R_cut = r_of_m(M_cut)
+    R_cut_inner = r_of_m(M_cut_inner)
 
-    m_rand = M_cut*np.random.uniform(0.0,1.0,N)
+    m_rand = np.random.uniform(M_cut_inner,M_cut,N)
     r_rand = r_of_m(m_rand)
     theta_rand = np.random.uniform(0.0,2*np.pi,N)
 
@@ -61,37 +62,15 @@ if __name__ == '__main__':
         if L < 0.0 : return 0.0
         else: return F0*L**q*np.exp(E/(sig**2))
 
-    def F_tomin(v,r):
-        return -F_M(relative_energy(r,v[0],v[1]),r*v[1])*v[1]
-
-    def fmax(r,vmax):
-        #vmax = np.sqrt(2. * relative_potential(r))
-        
-        args = (r,)
-        
-        # Constraint function (defined locally, dep on r)
-        def vel_constr2(v):
-            return vmax**2-v[0]**2-v[1]**2
-        
-        # Initial Guess
-        v0 = [0.1*vmax,0.2*vmax]
-
-        # Constraint Object
-        cons = ({'type':'ineq', 'fun': vel_constr2})
-        
-        # Minimize through scipy.optimize.minimize
-        #fm = minimize(F_tomin,v0,constraints=cons,method = 'COBYLA',args=args)
-        fm = minimize(F_tomin,v0,constraints=cons,method = 'SLSQP',args=args,bounds=[(0,vmax),(0,vmax)])
-        
-        # Min of negative df == max of df
-        return -fm.fun
+    def F_Mv(r,vr,vt):
+        return F_M(relative_energy(r,vr,vt),r*vt)
 
     def sample_vel(r):
         # Compute max velocity (equiv. condition for E>=0)
         #vmax = np.sqrt(2. * relative_potential(r))
-        vmax = 50*v0
+        vmax = 3*v0
         # Compute max of DF at this radius
-        fm = 1.1*fmax(r,vmax) # 1.1 factor to be sure to include max
+        fm = F_Mv(r,0.0,sig*np.sqrt(q))
         #print(fm)
         while True:
             # Select candidates for vr,vt based on max full velocity
@@ -99,7 +78,7 @@ if __name__ == '__main__':
             vt = np.random.uniform(0.0,vmax)
             # Rejection Sampling on Fq
             f = np.random.uniform(0.0,fm)
-            if F_M(relative_energy(r,vr,vt),r*vt)*vt >= f:
+            if F_Mv(r,vr,vt) >= f:
                 return vr,vt
 
     print('Sampling velocities...')
@@ -129,7 +108,7 @@ if __name__ == '__main__':
 
     ####### Generate masses
 
-    m = M_cut/N * np.ones(N)
+    m = (M_cut-M_cut_inner)/N * np.ones(N)
 
     ####### Exclude extreme outliers
     idx = np.sqrt(np.sum(X**2,1)) < bound
@@ -170,7 +149,12 @@ if __name__ == '__main__':
             int_energy = np.zeros(new_N),
             smoothing = np.ones(new_N)
         )
-
+    print('done.')
+    print('Generated Truncated Mestel disk with cuts:')
+    print('M_inner = ' + "{:.1e}".format(M_cut_inner) + '   -->   R_inner = ' + "{:.1e}".format(R_cut_inner))
+    print('M_outer = ' + "{:.1e}".format(M_cut) + '   -->   R_outer = ' + "{:.1e}".format(R_cut))
+    epsilon0 = np.sqrt(2.0*G*(M_cut - M_cut_inner)*r0)/v0 / np.sqrt(N)
+    print('Recommended Softening length (times conventional factor): ' + "{:.4e}".format(epsilon0) + ' kpc')
     ###### Optional: Pickle ic arrays for future use
     if pickle_ics:
         import pickle as pkl
