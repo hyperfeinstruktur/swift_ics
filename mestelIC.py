@@ -76,7 +76,7 @@ if use_parallel:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, pool=pool)
         state = sampler.run_mcmc(p0, burnin)
         sampler.reset()
-        sampler.run_mcmc(p0, nsamples,progress=True)
+        sampler.run_mcmc(state, nsamples,progress=True)
     samples = sampler.get_chain(flat=True)
     
 else:
