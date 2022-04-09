@@ -32,7 +32,6 @@ use_parallel = False   # Use parallel sampling
 nb_threads = 6         # Number of parallel threads to use
 
 ### IC File
-bound = 1000.		   # Max distance to origin (exclude outliers)
 fname = 'mestel.hdf5'  # Name of the ic file (dont forget .hdf5)
 pickle_ics = 0         # Optional: Pickle ics (pos,vel,mass) for future use
 box_size = 2000.0      # Size of simulation box
