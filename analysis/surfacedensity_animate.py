@@ -16,6 +16,7 @@ parser.add_argument("-interp",type=str,default='none',help="Interpolation used (
 parser.add_argument("-cmap",type=str,default='YlGnBu_r',help="Colormap")
 parser.add_argument("--notex",action='store_true')
 parser.add_argument("--savevid",action='store_true')
+parser.add_argument("--verbose",action='store_true')
 parser.add_argument("-FPS",type=int,default=20,help="FPS of output mp4")
 args = parser.parse_args()
 
@@ -49,7 +50,7 @@ def update_plot(i):
     ax.set_ylim(-lim,lim)
     ax.set_title(r'$t=$ ' + "{:.2f}".format(time) + ' Myr',fontsize=25)
     #print('### Processing frame ' + str(i) + ' ... ')
-    print('Processing ' + fn + ' ...')
+    if args.verbose: print('Processing ' + fn + ' ...')
 
 # Initialize Plot
 fname = args.dir + 'output_0000.hdf5'
