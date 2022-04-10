@@ -7,5 +7,6 @@ A set of python scripts to generate realizations of a few isolated stellar syste
 - read_snapshot.py: Class to read from a Swift .hdf5 snapshot file
 - write_gadget.py: Wrapper used to write ics to a SWIFT-compatible hdf5 IC file (Josh Borrow (joshua.borrow@durham.ac.uk), see official SWIFT documentation)
 
-## New External Potential for Swift
-The directory *swiftsim* contains the necessary additions to the SWIFT source to compile it with an external Mestel Potential
+
+## New External Potential for SWIFT
+The directory `swiftsim` contains the necessary additions to the SWIFT source to compile it with an external Mestel Potential.
