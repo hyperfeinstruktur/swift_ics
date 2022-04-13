@@ -24,13 +24,13 @@ figsize = 6
 
 # Snapshot
 sn = snapshot(fname)
-pos = sn.pos[sn.IDs>=active_id_start] - 1000.
+idx = sn.IDs>=active_id_start
+pos = sn.pos[idx] - 1000.
 x = pos[:,0]
 y = pos[:,1]
 r = np.sqrt(np.sum(pos**2,1))
-pot = sn.pot
 time = sn.time_Myr()
-mass = sn.mass
+mass = sn.mass[idx]
 
 # Model Parameters
 G = 4.299581e+04
