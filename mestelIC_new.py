@@ -10,31 +10,32 @@ from tqdm import tqdm
 
 ### Model parameters
 G = 4.299581e+04       # kpc / 10^10 solar mass * (km/s)^2
-r0 = 10.               # Scale Radius
+r0 = 16.               # Scale Radius
 q = 11.4               # Dispersion parameter
 v0 = 230               # Circular velocity
 
 ### Sampling parameters
 ndim = 3               # r, vr, vt
 nwalkers = 32          # Number of MCMC walkers FIXME: for parallel maybe reduce?
-nsamples = 4000        # Number of samples to be drawn for each walker
+nsamples = 16000        # Number of samples to be drawn for each walker
 scatter_coeff = 0.1    # Amplitude of random scatter for walker initial pos
 burnin = 100           # Number of burn-in steps
 N = nwalkers*nsamples  # Number of active particles in simulation
+display_results = True # Plot the sampling results as a check
 
 ### Cut functions (Zang 1976, Toomre 1989, see De Rijcke et al. 2019)
-r_inner = 5.0
+r_inner = 8.0 #10.0
 r_outer = 11.5*r_inner
-n       = 4
-m       = 5
-R_cut = 20.0*r_inner          # Hard cut (set to much larger than active disk)
-#chi     = 1          # Fraction of total mass to be active
+nu       = 4
+mu       = 5
+R_cut = 20.0*r_inner   # Hard cut (set to much larger than active disk)
+chi     = 0.5            # Global Mass coefficient (e.g. 0.5 for "Half-Mass" Disk) --> Add External potential with r0' = 1/chi * r0
 
 ## Missing Mass sampling
 nwalkers_mm = 32
-nsamples_mm = 1000
+nsamples_mm = 16000
 N_mm = nwalkers_mm * nsamples_mm # Number of unresponsive background particles to compensate missing mass
-active_id_start = 1000000 # Particle ID below which the particles are unresponsive (see https://swift.dur.ac.uk/docs/GettingStarted/special_modes.html)
+active_id_start = 10000000 # Particle ID below which the particles are unresponsive (see https://swift.dur.ac.uk/docs/GettingStarted/special_modes.html)
 
 ### Parallelism
 use_parallel = False   # Use parallel sampling
@@ -53,9 +54,30 @@ sig2 = v0**2 / (1.0+q)
 F0 = Sigma0 / ( 2.0**(q/2.) * np.sqrt(np.pi) * r0**q * sig**(q+2.0) * sci.gamma((1+q)/2.0)) # DF Normalization factor
 # Precompute quantities for efficiency during sampling
 lnF0 = np.log(F0)
-routv0m = (r_outer * v0)**m
-lnroutv0m = np.log(routv0m)
-rinv0n = (r_inner * v0)**n
+routv0mu = (r_outer * v0)**mu
+lnroutv0mu = np.log(routv0mu)
+rinv0nu = (r_inner * v0)**nu
+
+### Print parameters
+print('\n############################################################################################# \n')
+print('Generating Mestel Disk with the following parameters:\n')
+print('-- Model Parameters --')
+print('Circular velocity:                                v0 = ' + str(v0) + 'km/s')
+print('Characteristic Radius:                            r0 = ' + str(r0) + ' kpc')
+print('Dispersion parameter:                              q = ' + str(q))
+print('')
+print('-- Truncation --')
+print('Inner cutoff radius:                         r_inner = '+str(r_inner)+' kpc, Exponent: nu = '+str(nu))
+print('Outer cutoff radius:                         r_outer = '+str(r_outer)+' kpc, Exponent: mu = '+str(mu))
+print('Hard Cut:                                      R_cut = '+str(R_cut))
+print('')
+print('-- Sampling --')
+print('Number of active particles:                   N_part = '+str(N))
+print('Number of background particles (missing mass): N_bkg = '+str(N_mm))
+print('')
+print('-- Output --')
+print('Output file: ' + fname)
+print('\n############################################################################################# \n')
 
 ### Helper Functions
 # Binding potential / Binding energy
@@ -70,10 +92,10 @@ def log_prob(x):
     elif x[2] < 0.0: return -np.inf
     else:
         rvt = x[0]*x[2]
-        rvtn = rvt**n
+        rvtn = rvt**nu
         # FIXME: divide DF by r to obtain correct density, why?
         # Truncated Disk
-        return np.log(rvtn) - np.log(rvtn + rinv0n) + lnF0 + q*np.log(rvt) + relative_energy(x[0],x[1],x[2])/sig2 + lnroutv0m - np.log(routv0m + rvt**m) + np.log(x[0])
+        return np.log(rvtn) - np.log(rvtn + rinv0nu) + lnF0 + q*np.log(rvt) + relative_energy(x[0],x[1],x[2])/sig2 + lnroutv0mu - np.log(routv0mu + rvt**mu) + np.log(x[0])
         # Untruncated Disk
         #return lnF0 + q*np.log(rvt) + relative_energy(x[0],x[1],x[2])/sig2 + np.log(x[0])
     
@@ -83,7 +105,7 @@ startpos = np.array([r0,0.0,v0])
 p0 = startpos + scatter_coeff * np.random.randn(nwalkers, len(startpos))
 
 ### Sample DF
-print('Generating Truncated Mestel Disk with ' + "{:d}".format(N) + ' particles...')
+print('Sampling  ' + "{:d}".format(N) + ' active particles...')
 if use_parallel:
     with Pool(processes=nb_threads) as pool: 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, pool=pool)
@@ -116,7 +138,7 @@ v_z = np.zeros(N)
 V = np.array([v_x,v_y,v_z]).transpose()
 
 '''
-####### Compute Missing mass
+### Compute Missing mass
 The distribution function that was sampled so far contains the 2 truncation functions, and hence
 does not generate a surface density equal to the Mestel density. To compensate for this, the
 "missing mass density" is calculated numerically and sampled to produce another set of particles
@@ -130,12 +152,12 @@ print('Computing mass density of truncated disk, missing mass density and integr
 # Truncated Distribution Function (same as above, without log)
 def DF(vr,vt,r):
     L = r*vt
-    return F0 * L**(n+q) * routv0m / ((rinv0n+L**n)*(routv0m+L**m)) * np.exp(relative_energy(r,vr,vt)/sig2)
+    return F0 * L**(nu+q) * routv0mu / ((rinv0nu+L**nu)*(routv0mu+L**mu)) * np.exp(relative_energy(r,vr,vt)/sig2)
 
 # Truncated DF marginalized (integrated) over vr (analytically), for efficiency
 def DF_intover_vr(vt,r):
     L = r*vt
-    return F0 * routv0m * r**(n-1) * vt**(n+q) * np.exp(-0.5*vt**2/sig2) / ((rinv0n + L**n)*(routv0m + L**m)) * np.sqrt(2*np.pi)*sig / r0**(-1-q)
+    return F0 * routv0mu * r**(nu-1) * vt**(nu+q) * np.exp(-0.5*vt**2/sig2) / ((rinv0nu + L**nu)*(routv0mu + L**mu)) * np.sqrt(2*np.pi)*sig / r0**(-1-q)
 
 # Numerically integrate over vr to produce Sigma(r)
 def density_truncated(r):
@@ -183,7 +205,7 @@ def missing_mass_density(r):
 def logprob_mm(r):
     if r <= 0.0 or r > R_cut : return -np.inf
     else: return np.log(missing_mass_density(r)) + np.log(r)
-print('Generating ' + "{:d}".format(N_mm) + ' background particles to compensate for missing mass...')
+print('Sampling ' + "{:d}".format(N_mm) + ' background particles to compensate for missing mass...')
 sampler_mm = emcee.EnsembleSampler(nwalkers_mm, 1, logprob_mm)
 startpos_mm = np.array(r0)
 p0_mm = startpos_mm + scatter_coeff * np.random.randn(nwalkers_mm, 1)
@@ -201,19 +223,23 @@ z_mm = np.zeros(N_mm)
 
 X_mm = np.array([x_mm,y_mm,z_mm]).transpose()
 
+# Global mass coefficient
+m *= chi
+m_mm *= chi
+
 # Merge Active & Passive particles to write IC file
 X_full = np.concatenate((X,X_mm))
 V_full = np.concatenate((V,np.zeros((N_mm,3))))
 M_full = np.concatenate((m*np.ones(N),m_mm*np.ones(N_mm)))
-IDs    = np.concatenate((np.arange(active_id_start,N),np.arange(N_mm)))
-
+IDs    = np.concatenate((np.arange(active_id_start,N+active_id_start),np.arange(N_mm)))
+print(IDs)
 print('Writing IC file...')
 with h5py.File(fname,'w') as f:
     wg.write_header(
         f,
         boxsize=box_size,
         flag_entropy = 0,
-        np_total = [0,N,0,0,0,0],
+        np_total = [0,N+N_mm,0,0,0,0],
         np_total_hw = [0,0,0,0,0,0]
     )
     wg.write_runtime_pars(
@@ -228,17 +254,6 @@ with h5py.File(fname,'w') as f:
         current = 1.0,
         temperature = 1.0
     )
-    # Active Particles
-    #wg.write_block(
-    #    f,
-    #    part_type = 1,
-    #    pos = X,
-    #    vel = V,
-    #    mass = m*np.ones(N),
-    #    ids=np.arange(active_id_start,N),
-    #    int_energy = np.zeros(N),
-    #    smoothing = np.ones(N)
-    #)
 
     wg.write_block(
         f,
@@ -251,3 +266,42 @@ with h5py.File(fname,'w') as f:
         smoothing = np.ones(N+N_mm)
     )
 print('done.')
+epsilon0 = np.sqrt(2.0*G*Mtot*r0)/v0 / np.sqrt(N+N_mm)
+print('Recommended Softening length (times conventional factor): ' + "{:.4e}".format(epsilon0) + ' kpc')
+
+### Testing
+if display_results:
+    print('Plotting Sampling Results...')
+    import matplotlib.pyplot as plt
+    def mass_ins(r,rs,ms):
+        return ms*(rs <= r).sum()
+    def density(r,mins):
+        return np.diff(mins) / np.diff(r) / (2.*np.pi*r[1:])
+    def density_mestel(r):
+        return v0**2/(2.*np.pi*G*r)
+
+    rsp = np.logspace(0.6,2,300)
+    mins_active = np.empty(len(rsp))
+    mins_passive = np.empty(len(rsp))
+    for i,r in enumerate(rsp):
+        mins_active[i] = mass_ins(r,samples[:,0],m)
+    for i,r in enumerate(rsp):
+        mins_passive[i] = mass_ins(r,samples_mm[:,0],m_mm)
+    dens_active = density(rsp,mins_active)
+    dens_passive = density(rsp,mins_passive)
+    
+    fs = 20
+    ms = 2
+    lw = 2.5
+    plt.figure(figsize=(10,10))
+    plt.loglog(rsp[1:],dens_active,'s',ms=ms,label='Sampled Mass Density (truncated)')
+    plt.loglog(rsp[1:],dens_passive,'^',ms=ms,label='Sampled Missing Mass Density')
+    plt.loglog(rsp[1:],dens_active + dens_passive,'o',ms=2.5,label='Total Sampled Mass Density')
+    plt.loglog(rsp,chi*density_truncated_interp(rsp),'--',lw=lw,label='Theoretical Density (truncated)')
+    plt.loglog(rsp,chi*density_mestel(rsp),lw=lw,c='black',label='Theoretical Total density (untruncated)')
+    plt.loglog(rsp,chi*missing_mass_density(rsp),'-.',label='Theoretical Missing Mass Density')
+    plt.legend(fontsize=fs-7)
+    plt.xlabel(r'$r$ [kpc]',fontsize=fs)
+    plt.ylabel(r'$\rho(r)$ [$10^{10} M_{\odot}$ / kpc$^3$]',fontsize=fs)
+    plt.title('Consistency Check',fontsize=fs)
+    plt.show()

@@ -10,6 +10,7 @@ parser.add_argument("files",nargs='+',help="snapshot files to be imaged")
 parser.add_argument("--notex",action='store_true',help="Flag to not use LaTeX markup")
 parser.add_argument("-r0",type=float,default=10,help="Scale Radius of theoretical Mestel disk")
 parser.add_argument("-v0",type=float,default=100,help="Circular velocity of theoretical Mestel disk")
+parser.add_argument("-Rcut",type=float,default=160,help="Cut Radius")
 parser.add_argument("-chi",type=float,default=0,help="Global Mass Fraction")
 parser.add_argument("-aid",type=int,default=0,help="ID below which particles are passive")
 
@@ -29,7 +30,7 @@ figsize = 7
 
 # Model Parameters (Mestel surface density)
 G = 4.299581e+04
-rsp = np.logspace(0.0,np.log10(160),200)
+rsp = np.logspace(0.0,np.log10(args.Rcut),200)
 v0 = args.v0
 r0 = args.r0
 
