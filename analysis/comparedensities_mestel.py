@@ -35,7 +35,7 @@ v0 = args.v0
 r0 = args.r0
 
 # Plot densities
-fig, ax = plt.subplots(figsize=(figsize,1.1*figsize))
+fig, ax = plt.subplots(figsize=(figsize,1.2*figsize))
 for fname in fnames:
     print(fname)
     # Snapshot
@@ -60,9 +60,10 @@ for fname in fnames:
         return v0**2/(2.0*np.pi*G*r)
     
     # Plot
-    ax.loglog(rsp[1:],density(rsp),'o',ms=2,label=r'$t=$ {:.3f} Gyr'.format(sn.time_Gyr()))
+    ax.loglog(rsp[1:],density(rsp),'o',ms=1.7,label=r'$t=$ {:.3f} Gyr'.format(sn.time_Gyr()))
 
-fitstr = 'Mestel disk: $r_0 = {:.1f}$ , $v_0 = {:.1f}$'.format(r0,v0)
+#fitstr = 'Mestel disk: $r_0 = {:.1f}$ , $v_0 = {:.1f}$'.format(r0,v0)
+fitstr = r'Mestel disk: $v_0 = {:.1f}$ km/s, $\xi = {:.1f}$'.format(v0,args.chi)
 ax.plot(rsp,args.chi*mestel_analytical(rsp),c='black',label=fitstr)
 #ax.set_xlim(-lim,lim)
 #ax.set_ylim(-lim,lim)

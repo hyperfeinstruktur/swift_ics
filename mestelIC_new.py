@@ -12,7 +12,7 @@ from tqdm import tqdm
 G = 4.299581e+04       # kpc / 10^10 solar mass * (km/s)^2
 r0 = 16.               # Scale Radius
 q = 11.4               # Dispersion parameter
-v0 = 230               # Circular velocity
+v0 = 170               # Circular velocity
 
 ### Sampling parameters
 ndim = 3               # r, vr, vt
@@ -24,7 +24,7 @@ N = nwalkers*nsamples  # Number of active particles in simulation
 display_results = True # Plot the sampling results as a check
 
 ### Cut functions (Zang 1976, Toomre 1989, see De Rijcke et al. 2019)
-r_inner = 8.0 #10.0
+r_inner = 5.0 #10.0
 r_outer = 11.5*r_inner
 nu       = 4
 mu       = 5
