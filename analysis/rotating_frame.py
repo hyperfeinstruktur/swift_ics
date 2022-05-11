@@ -2,7 +2,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm, PowerNorm
 from matplotlib.animation import FuncAnimation
-from read_snapshot import *
 import argparse
 import os
 import h5py
@@ -21,6 +20,9 @@ parser.add_argument("--notex",action='store_true')
 parser.add_argument("--savevid",action='store_true')
 parser.add_argument("--verbose",action='store_true')
 parser.add_argument("-FPS",type=int,default=20,help="FPS of output mp4")
+parser.add_argument("-rp",type=int,default=10,help="Radius of perturbing mass (used as origin)")
+parser.add_argument("-ap",type=int,default=0,help="Angle of perturbing mass")
+parser.add_argument("-v0",type=int,default=200,help="Circular velocity of Mestel Disk")
 parser.add_argument("-aid",type=int,default=0,help="ID below which particles are passive")
 args = parser.parse_args()
 
@@ -42,6 +44,11 @@ tex = not args.notex
 FPS = args.FPS
 bitrate = -1 # Lets ffmpeg choose the best bitrate
 
+# Initialize rotation parameters
+omega = -args.v0 / (args.rp)
+x0 = args.rp*np.cos(args.ap)
+y0 = args.rp*np.sin(args.ap)
+
 if tex: plt.rcParams.update({"text.usetex": tex,'font.size':19,'font.family': 'serif'})
 else: plt.rcParams.update({'font.size':15})
 
@@ -55,14 +62,16 @@ def update_plot(i):
     if active_id_start != 0:
         IDs = np.array(f['DMParticles']['ParticleIDs'])
         pos = np.array(f['DMParticles']['Coordinates'])[IDs>=active_id_start]
-        x = pos[:,0] - shift
-        y = pos[:,1] - shift
+        X = pos[:,0] - shift
+        Y = pos[:,1] - shift
     else:
         pos = np.array(f['DMParticles']['Coordinates'])
-        x = pos[:,0] - shift
-        y = pos[:,1] - shift
+        X = pos[:,0] - shift
+        Y = pos[:,1] - shift
+    x = np.cos(omega*t)*X - np.sin(omega*t)*Y - x0
+    y = np.sin(omega*t)*X + np.cos(omega*t)*Y - y0
     data = np.histogram2d(x,y,bins=nbins,range=[[-lim, lim], [-lim, lim]])[0]
-    im.set_data(data+1) # +1 if log norm
+    im.set_data(data.T+1) # +1 if log norm
     ax.set_xlim(-lim,lim)
     ax.set_ylim(-lim,lim)
     #ax.set_title(r'$t=$ ' + "{:.2f}".format(time) + ' Myr',fontsize=25)
@@ -75,12 +84,14 @@ t = f['Header'].attrs['Time'][0]
 if active_id_start != 0:
     IDs = np.array(f['DMParticles']['ParticleIDs'])
     pos = np.array(f['DMParticles']['Coordinates'])[IDs>=active_id_start]
-    x = pos[:,0] - shift
-    y = pos[:,1] - shift
+    X = pos[:,0] - shift
+    Y = pos[:,1] - shift
 else:
     pos = np.array(f['DMParticles']['Coordinates'])
-    x = pos[:,0] - shift
-    y = pos[:,1] - shift
+    X = pos[:,0] - shift
+    Y = pos[:,1] - shift
+x = np.cos(omega*t)*X - np.sin(omega*t)*Y - x0
+y = np.sin(omega*t)*X + np.cos(omega*t)*Y - y0
 fig, ax = plt.subplots(figsize=(figsize,figsize))
 data = np.histogram2d(x,y,bins=nbins,range=[[-lim, lim], [-lim, lim]])[0]
 im = ax.imshow(data.T+1, interpolation = interp, norm=norm,
