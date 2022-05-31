@@ -12,9 +12,10 @@ parser.add_argument("-shift", type=float, default=1000.0, help="Shift applied to
 parser.add_argument("-aid",type=int,default=10000000,help="Index below which not to plot particles")
 
 # Histogram Parameters
-parser.add_argument("-nbins",type=int,default=500,help="Number of bins in xy")
-parser.add_argument("-lim",type=float,default=14,help="Limits of figure (in kpc)")
+parser.add_argument("-nbins",type=int,default=500,help="Number of bins in each dimension (x,y)")
+parser.add_argument("-lim",type=float,default=14,help="Limits of histogram (in kpc)")
 parser.add_argument("-interp",type=str,default='none',help="Interpolation used ('none','kaiser','gaussian',...). Default: none")
+parser.add_argument("--polar",action='store_true',help="Pot a r-phi histogram rather than an image")
 
 # Color Normalization Parameters
 parser.add_argument("-cmap",type=str,default='YlGnBu_r',help="Colormap (try YlGnBu_r, Magma !)")
@@ -49,23 +50,23 @@ if len(fnames) > args.nrows*args.ncols:
 
 # Convenience
 lim = args.lim
+active_id_start = int(args.aid)
 
 # Configure histogram color norm
 if args.norm == 'power':
     norm = PowerNorm(gamma=args.gamma)
 elif args.norm == 'log':
-    norm = LogNorm()
+    # The color range is later automatically adjusted to >0 if log norm
+    norm = LogNorm(clip=True)
 elif args.norm == 'linear':
-    norm = None
+    norm = None # Equivalent to linear
 else:
     raise NameError("Unknown color norm: " + str(args.norm))
 
 # Configure Pyplot
-if not args.notex: plt.rcParams.update({"text.usetex": True,'font.size':args.figheight,'font.family': 'serif'})
+if not args.notex: plt.rcParams.update({"text.usetex": True,'font.size':1.2*args.figheight,'font.family': 'serif'})
 else: plt.rcParams.update({'font.size':15})
 
-# ID below which not to plot particles (unresponsive ones), leave at 0 if none
-active_id_start = int(args.aid)
 
 # Set up corotation
 corot = args.rcr > 0
@@ -86,6 +87,7 @@ fig, ax = plt.subplots(args.nrows,args.ncols,figsize=(args.figwidth,args.figheig
 ax = ax.flatten()
 ims = []
 for i,fname in enumerate(fnames):
+    # Extract data from snapshot
     f = h5py.File(fname, "r")
     pos = np.array(f["DMParticles"]["Coordinates"]) - args.shift
     IDs = np.array(f["DMParticles"]["ParticleIDs"])
@@ -94,25 +96,35 @@ for i,fname in enumerate(fnames):
     t_myr = t * f["Units"].attrs["Unit time in cgs (U_t)"][0]/ 31557600.0e6
     x = pos[:,0]
     y = pos[:,1]
+
+    # Process Data
     if corot:
         x,y = process_pos(x,y,t)
-    data = np.histogram2d(x,y,bins=args.nbins,range=[[-lim, lim], [-lim, lim]])[0]
-    ims.append(ax[i].imshow(data.T+1, interpolation = args.interp, norm=norm,
-    			extent=(-lim,lim,-lim,lim),cmap=args.cmap))
+
+    # Make image
+    if not args.polar:
+        data = np.histogram2d(x,y,bins=args.nbins,range=[[-lim, lim], [-lim, lim]])[0]
+        ims.append(ax[i].imshow(data.T, interpolation = args.interp, norm=norm,
+                    extent=(-lim,lim,-lim,lim),cmap=args.cmap))
+        ax[i].set_xlim(-lim,lim)
+        ax[i].set_ylim(-lim,lim)
+        ax[i].set_aspect('equal')
+        ax[i].set_xlabel('x [kpc]')
+        ax[i].set_ylabel('y [kpc]')
+    else:
+        r = np.sqrt(x**2 + y**2)
+        phi = np.arctan2(y,x)
+        data,xe,ye,im = ax[i].hist2d(r,phi,range=[[0,lim],[-np.pi,np.pi]],bins=args.nbins,cmap=args.cmap)
+        ims.append(im)
+        ax[i].set_box_aspect(1)
+        ax[i].set_xlabel('$r$ [kpc]')
+        ax[i].set_ylabel('$\phi$ [rad]')
+
+    # Find global cmin, cmax
     cmin = min(cmin,np.amin(data))
-    cmax = max(cmax,np.amax(data))
-    #if ims[i].get_clim()[0] <cmin:
-    #    cmin = ims[i].get_clim()[0]
-    #if ims[i].get_clim()[1] > cmax:
-    #    cmax = ims[i].get_clim()[1]
-
-    ax[i].set_xlim(-lim,lim)
-    ax[i].set_ylim(-lim,lim)
-    ax[i].set_xlabel('x [kpc]')
-    ax[i].set_ylabel('y [kpc]')
+    cmax = max(cmax,np.amax(data)) 
     ax[i].set_title(r'$t=$ ' + "{:.2f}".format(t_myr) + ' Myr',fontsize=args.figwidth)
-    ax[i].set_aspect('equal')
-
+    
 # Set limits of color range to global min/max across snapshots
 if args.cmin > 0.0:
     cmin = args.cmin
@@ -120,6 +132,8 @@ print((cmin,cmax))
 if cmin <= 0.0 and args.norm == 'log': cmin = 1. # Can be improved...
 for im in ims:
     im.set(clim=(cmin,cmax))
+
+# Show & Save figure
 plt.show()
 if args.savefig:
     fig.savefig('densities_mult.eps',bbox_inches='tight')
