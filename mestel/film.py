@@ -1,5 +1,4 @@
 import numpy as np
-from matplotlib import pyplot as plt
 from matplotlib.colors import Normalize, LogNorm, PowerNorm
 from matplotlib.animation import FuncAnimation
 import argparse
@@ -45,6 +44,8 @@ parser.add_argument("--set_origin",action='store_true',
 
 # Film Parameters
 parser.add_argument("-fps",type=float,default=24,help="Frames per second")
+parser.add_argument("--headless",action='store_true',help="Flag to run on headless server (like lesta slurm)")
+parser.add_argument("--verbose",action='store_true',help="Show render progress")
 
 args = parser.parse_args()
 fnames = args.files
@@ -65,6 +66,10 @@ else:
     raise NameError("Unknown color norm: " + str(args.norm))
 
 # Configure Pyplot
+if args.headless:
+    import matplotlib
+    matplotlib.use('Agg')
+from matplotlib import pyplot as plt
 if not args.notex: plt.rcParams.update({"text.usetex": True,'font.size':2*args.figheight,'font.family': 'serif'})
 else: plt.rcParams.update({'font.size':15})
 
@@ -102,6 +107,8 @@ def update(i):
     # Make image
     if not args.polar:
         data = np.histogram2d(x,y,bins=args.nbins,range=[[-lim, lim], [-lim, lim]])[0]
+        # On lesta, clipping log does not work...
+        data[data==0] = args.cmin
         ax.imshow(data.T, interpolation = args.interp, norm=norm,
                     extent=(-lim,lim,-lim,lim),cmap=args.cmap)
         ax.set_xlim(-lim,lim)
@@ -119,6 +126,7 @@ def update(i):
         ax.set_ylabel('$\phi$ [rad]')
  
     ax.set_title(r'$t=$ ' + "{:.2f}".format(t_myr) + ' Myr')
+    if args.verbose: print(fnames[i])
 
 # Animate
 ani = FuncAnimation(fig, update,frames=range(len(fnames)),interval=100, repeat=1)
