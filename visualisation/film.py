@@ -28,7 +28,7 @@ parser.add_argument("-cmax",type=float,default=300,help="Maximum physical value 
 
 # Figure Parameterrs
 parser.add_argument("--notex",action='store_true')
-parser.add_argument("-figheight",type=float,default=10,help="Height of figure in inches")
+parser.add_argument("-figheight",type=float,default=13,help="Height of figure in inches")
 parser.add_argument("-figwidth",type=float,default=10,help="Width of figure in inches")
 parser.add_argument("--savefig",action='store_true',help="Save film as .mp4")
 
@@ -46,6 +46,7 @@ parser.add_argument("--set_origin",action='store_true',
 parser.add_argument("-fps",type=float,default=24,help="Frames per second")
 parser.add_argument("--headless",action='store_true',help="Flag to run on headless server (like lesta slurm)")
 parser.add_argument("--verbose",action='store_true',help="Show render progress")
+parser.add_argument("-bitrate",type=float,default=-1)
 
 args = parser.parse_args()
 fnames = args.files
@@ -119,20 +120,21 @@ def update(i):
     else:
         r = np.sqrt(x**2 + y**2)
         phi = np.arctan2(y,x)
-        ax.hist2d(r,phi,range=[[0,lim],[-np.pi,np.pi]],
-                    bins=args.nbins,cmap=args.cmap,norm=norm)
-        ax.set_box_aspect(1)
+        h = ax.hist2d(r,phi,range=[[0,lim],[-np.pi,np.pi]],
+                    bins=args.nbins,cmap=args.cmap,norm=norm)[0]
+        #ax.set_box_aspect(1)
         ax.set_xlabel('$r$ [kpc]')
         ax.set_ylabel('$\phi$ [rad]')
+        print("Max: " + str(np.amax(h)))
  
     ax.set_title(r'$t=$ ' + "{:.2f}".format(t_myr) + ' Myr')
     if args.verbose: print(fnames[i])
 
 # Animate
-ani = FuncAnimation(fig, update,frames=range(len(fnames)),interval=100, repeat=1)
+ani = FuncAnimation(fig, update,frames=range(len(fnames)),interval=100,save_count=1)#cache_frame_data=False)
 
 # Show & Save figure
 if args.savefig:
-    ani.save('film.mp4',writer='ffmpeg',fps=args.fps,bitrate=-1)
+    ani.save('film.mp4',writer='ffmpeg',fps=args.fps,bitrate=args.bitrate)
 else:
     plt.show()
