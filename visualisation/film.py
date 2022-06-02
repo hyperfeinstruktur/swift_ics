@@ -87,51 +87,81 @@ if corot:
         y = np.sin(omega*t)*X + np.cos(omega*t)*Y - y0
         return x,y
 
-# Initialize plot
-fig, ax = plt.subplots(figsize=(args.figwidth,args.figheight))
 
-def update(i):
-    # Extract data from snapshot
-    f = h5py.File(fnames[i], "r")
-    pos = np.array(f["DMParticles"]["Coordinates"]) - args.shift
-    IDs = np.array(f["DMParticles"]["ParticleIDs"])
-    pos = pos[IDs>=active_id_start]
-    t = f["Header"].attrs["Time"][0]
-    t_myr = t * f["Units"].attrs["Unit time in cgs (U_t)"][0]/ 31557600.0e6
-    x = pos[:,0]
-    y = pos[:,1]
-
-    # Process Data
-    if corot:
-        x,y = process_pos(x,y,t)
-
-    # Make image
-    if not args.polar:
+# Set up data§ treatment for cartesian/polar
+if not args.polar:
+    def hist(x,y):
         data = np.histogram2d(x,y,bins=args.nbins,range=[[-lim, lim], [-lim, lim]])[0]
-        # On lesta, clipping log does not work...
         data[data==0] = args.cmin
-        ax.imshow(data.T, interpolation = args.interp, norm=norm,
-                    extent=(-lim,lim,-lim,lim),cmap=args.cmap)
-        ax.set_xlim(-lim,lim)
-        ax.set_ylim(-lim,lim)
-        ax.set_aspect('equal')
-        ax.set_xlabel('x [kpc]')
-        ax.set_ylabel('y [kpc]')
-    else:
+        return data
+else:
+    def hist(x,y):
         r = np.sqrt(x**2 + y**2)
         phi = np.arctan2(y,x)
-        h = ax.hist2d(r,phi,range=[[0,lim],[-np.pi,np.pi]],
-                    bins=args.nbins,cmap=args.cmap,norm=norm)[0]
-        #ax.set_box_aspect(1)
+        data = np.histogram2d(r,phi,bins=args.nbins,range=[[0,lim],[-np.pi,np.pi]])[0]
+        data[data==0] = args.cmin
+        return data
+
+# Methods for animation
+def init():
+    if not args.polar:
+        ax.set_xlim(-lim,lim)
+        ax.set_ylim(-lim,lim)
+        ax.set_xlabel('x [kpc]')
+        ax.set_ylabel('y [kpc]')
+        ax.set_aspect('equal')
+    else:
         ax.set_xlabel('$r$ [kpc]')
         ax.set_ylabel('$\phi$ [rad]')
-        print("Max: " + str(np.amax(h)))
- 
-    ax.set_title(r'$t=$ ' + "{:.2f}".format(t_myr) + ' Myr')
-    if args.verbose: print(fnames[i])
+        ax.set_aspect(lim/(2*np.pi))
+    return im,
+
+def prepare_anim(im,title):
+    def update(i):
+        # Extract data from snapshot
+        f = h5py.File(fnames[i], "r")
+        pos = np.array(f["DMParticles"]["Coordinates"]) - args.shift
+        IDs = np.array(f["DMParticles"]["ParticleIDs"])
+        pos = pos[IDs>=active_id_start]
+        t = f["Header"].attrs["Time"][0]
+        t_myr = t * f["Units"].attrs["Unit time in cgs (U_t)"][0]/ 31557600.0e6
+        x = pos[:,0]
+        y = pos[:,1]
+    
+        # Process Data
+        if corot:
+            x,y = process_pos(x,y,t)
+        # Title
+        title.set_text("{:.2f}".format(t_myr) + ' Myr')
+    
+        # Update image
+        data = hist(x,y)
+        im.set_data(data.T)
+        print("Max: " + str(np.amax(data)))
+     
+        if args.verbose: print(fnames[i])
+        return im,ttl
+    return update
+
+# Initialize plot
+fig, ax = plt.subplots(figsize=(args.figwidth,args.figheight))
+if not args.polar:
+    ext = (-lim,lim,-lim,lim)
+else:
+    ext = (0,lim,-np.pi,np.pi)
+im = ax.imshow(np.zeros((args.nbins,args.nbins)),
+              interpolation = args.interp, norm = norm,
+              extent = ext, cmap = args.cmap)
+ttl = ax.text(0.01, 0.99,"{:.2f}".format(0) + ' Myr',
+    horizontalalignment='left',
+    verticalalignment='top',
+    color = 'white',
+    transform = ax.transAxes)
 
 # Animate
-ani = FuncAnimation(fig, update,frames=range(len(fnames)),interval=100,save_count=1)#cache_frame_data=False)
+ani = FuncAnimation(fig, prepare_anim(im,ttl),frames = len(fnames),
+                    init_func = init,
+                    blit=True)#cache_frame_data=False)
 
 # Show & Save figure
 if args.savefig:
